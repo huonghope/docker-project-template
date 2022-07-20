@@ -1,0 +1,55 @@
+FROM centos
+
+# Git setup
+RUN yum install -y git
+RUN git config --global push.default simple
+RUN git config --global user.name approved_user
+RUN git config --global user.email approved@corp.com
+
+# Setup github
+WORKDIR /root
+RUN mkdir /root/github_myproject
+WORKDIR /root/github_myproject
+RUN git init --bare
+
+# Setup stash
+WORKDIR /root
+RUN mkdir stash_myproject
+WORKDIR /root/stash_myproject
+RUN git init --bare
+
+# Setup approved user's repo, with github and stash remotes
+WORKDIR /root
+RUN mkdir /root/myproject
+WORKDIR /root/myproject
+RUN git init
+RUN touch myprojectfile
+RUN git add myprojectfile
+RUN git commit -am myproject
+RUN git remote add github /root/github_myproject
+RUN git push --set-upstream github master
+RUN git remote add stash /root/stash_myproject
+RUN git push --set-upstream stash master
+RUN git push --set-upstream github master
+
+# Set up unapproved user and clone from stash
+WORKDIR /root
+RUN git config --global user.name nonapproved_user
+RUN git config --global user.email nonapproved@corp.com
+RUN git clone stash_myproject myproject_clone
+# Do work
+WORKDIR /root/myproject_clone
+RUN echo change_1 >> myprojectfile
+RUN git commit -am 'change_1'
+
+# Approved user accepts and change applies it to both repos
+WORKDIR /root/myproject
+RUN git config --global user.name approved_user
+RUN git config --global user.email approved@corp.com
+RUN git remote add nonapproved ../myproject_clone
+RUN git fetch nonapproved
+RUN git rebase master nonapproved/master
+RUN git push stash master
+RUN git push github master
+# Attribution maintained
+RUN git log --patch
